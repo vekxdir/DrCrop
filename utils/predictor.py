@@ -70,7 +70,21 @@ class Predictor:
             target_weights = h5_path if os.path.exists(h5_path) else self.model_path
             
             print(f"Loading weights from: {target_weights}", flush=True)
-            self.model.load_weights(target_weights)
+            try:
+                # Attempt 1: Topology-based load
+                self.model.load_weights(target_weights)
+                print("Weights loaded via topology.", flush=True)
+            except Exception as e_top:
+                print(f"Topology-based weight load failed: {e_top}", flush=True)
+                print("Attempting to load weights by name...", flush=True)
+                try:
+                    # Attempt 2: Name-based load
+                    self.model.load_weights(target_weights, by_name=True)
+                    print("Weights loaded via layer names.", flush=True)
+                except Exception as e_name:
+                    print(f"Name-based weight load failed: {e_name}", flush=True)
+                    raise e_name
+
             print("MODEL LOADED SUCCESSFULLY (BY ARCHITECTURE REBUILD)", flush=True)
 
         except Exception as e:
@@ -79,7 +93,7 @@ class Predictor:
 
     def build_model_architecture(self):
         """Hard-coded MobileNetV2 architecture matching train.py exactly."""
-        from tensorflow.keras import layers, applications
+        from tensorflow.keras import layers, applications, Sequential
 
         IMG_SIZE = (128, 128)
         TARGET_IMG_SIZE = (224, 224)
@@ -88,17 +102,20 @@ class Predictor:
         # 1. Input layer
         inputs = tf.keras.Input(shape=IMG_SIZE + (3,))
 
-        # 2. Sequential Data Augmentation (topology matching even if pass-through)
-        # Random layers in inference mode act as identity/pass-through
-        x = layers.RandomFlip("horizontal_and_vertical")(inputs)
-        x = layers.RandomRotation(0.2)(x)
-        x = layers.RandomZoom(0.2)(x)
+        # 2. Sequential Data Augmentation (topology matching)
+        # In train.py, these are wrapped in a Sequential model
+        data_augmentation = Sequential([
+            layers.RandomFlip("horizontal_and_vertical"),
+            layers.RandomRotation(0.2),
+            layers.RandomZoom(0.2),
+        ])
+        x = data_augmentation(inputs)
 
         # 3. Preprocessing
         x = layers.Resizing(TARGET_IMG_SIZE[0], TARGET_IMG_SIZE[1])(x)
         x = layers.Rescaling(1./127.5, offset=-1)(x)
 
-        # 4. Base Model (weights=None to avoid downloads, topology must match)
+        # 4. Base Model
         base_model = applications.MobileNetV2(
             input_shape=TARGET_IMG_SIZE + (3,),
             include_top=False,
