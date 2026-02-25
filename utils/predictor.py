@@ -102,6 +102,12 @@ class Predictor:
 
             else:
                 print(f"Model file NOT FOUND at: {self.model_path}")
+                # Debug: List what IS in the model folder
+                model_dir = os.path.dirname(self.model_path)
+                if os.path.exists(model_dir):
+                    print(f"Contents of {model_dir}: {os.listdir(model_dir)}")
+                else:
+                    print(f"Directory {model_dir} ALSO NOT FOUND.")
 
         except Exception as e:
             print(f"CRITICAL MODEL LOAD ERROR: {e}")
