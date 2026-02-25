@@ -1,0 +1,259 @@
+{% extends "layout.html" %}
+
+{% block title %}DrCrop AI | Home{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6 mb-5 mb-lg-0">
+                <span class="badge bg-success bg-opacity-10 text-success mb-3 px-3 py-2 rounded-pill fw-bold">
+                    <i class="fas fa-check-circle me-1"></i> #1 AI Agriculture Tool
+                </span>
+                <h1 class="hero-title">Protect Your Crops with <span class="text-gradient">AI Precision</span></h1>
+                <p class="hero-subtitle">
+                    Instantly detect diseases, assess risk levels, and get expert treatment recommendations. Trusted by
+                    modern farmers worldwide.
+                </p>
+                <div class="d-flex gap-3">
+                    <a href="#upload" class="btn btn-primary btn-lg rounded-pill px-5 shadow-sm">Analyze Crop Now</a>
+                    <a href="#how-it-works" class="btn btn-outline-secondary btn-lg rounded-pill px-4">See how it
+                        works</a>
+                </div>
+                <div class="mt-4 pt-3 border-top border-light">
+                    <div class="d-flex align-items-center gap-4">
+                        <div class="d-flex">
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-warning"></i>
+                            <i class="fas fa-star text-warning"></i>
+                        </div>
+                        <span class="text-muted small"><strong>4.9/5</strong> rating from 10k+ farmers</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <!-- Main Upload Card -->
+                <div class="card upload-card shadow-lg" id="upload">
+                    <div class="card-body p-4 p-md-5">
+                        <div class="text-center mb-4">
+                            <h3 class="fw-bold">Try DrCrop AI Free</h3>
+                            <p class="text-muted small">Upload a photo of a crop leaf to get started</p>
+                        </div>
+
+                        <form action="/predict" method="post" enctype="multipart/form-data" id="uploadForm">
+                            <div class="upload-area" id="dropZone">
+                                <div class="mb-3">
+                                    <div class="icon-box mx-auto bg-light text-primary rounded-circle">
+                                        <i class="fas fa-cloud-upload-alt"></i>
+                                    </div>
+                                </div>
+                                <h5 class="fw-bold">Click to upload</h5>
+                                <p class="text-muted small mb-0">or drag and drop SVG, PNG, JPG</p>
+                                <input type="file" name="file" id="fileInput" class="d-none" accept="image/*" required>
+                            </div>
+
+                            <!-- Preview Section -->
+                            <div id="previewContainer" class="mt-4 text-center" style="display: none;">
+                                <div class="position-relative d-inline-block">
+                                    <img id="imagePreview" src="#" alt="Preview" class="rounded-3 shadow-sm border"
+                                        style="max-height: 200px; width: auto;">
+                                    <button type="button"
+                                        class="btn btn-sm btn-danger position-absolute top-0 end-0 m-2 rounded-circle"
+                                        id="removeImage">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <p class="text-success small mt-2 fw-bold"><i class="fas fa-check me-1"></i> Ready to
+                                    analyze</p>
+                            </div>
+
+                            <div class="d-grid mt-4">
+                                <button type="submit" class="btn btn-primary btn-lg rounded-pill" id="predictBtn"
+                                    disabled>
+                                    Analyze Disease
+                                </button>
+                                <div class="text-center mt-3" id="loader" style="display: none;">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p class="small text-muted mt-2">AI is analyzing your crop...</p>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Features Section -->
+<section class="section-padding" id="features">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h6 class="text-primary fw-bold text-uppercase letter-spacing-2">Features</h6>
+            <h2 class="fw-bold display-6">Why Choose DrCrop?</h2>
+        </div>
+        <div class="row g-4 d-flex align-items-stretch">
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="icon-box">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <h4>AI-Powered Accuracy</h4>
+                    <p class="text-muted">Our advanced Neural Networks analyze leaf patterns with 98% accuracy to detect
+                        even early signs of disease.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="icon-box">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <h4>Instant Results</h4>
+                    <p class="text-muted">Get diagnosis in seconds. No waiting for lab results. Make informed decisions
+                        right in the field.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="icon-box">
+                        <i class="fas fa-user-md"></i>
+                    </div>
+                    <h4>Expert Cures</h4>
+                    <p class="text-muted">Don't just detect the problem—solve it. Get verified treatment recommendations
+                        from agricultural experts.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- How It Works Section -->
+<section class="section-padding bg-light" id="how-it-works">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="fw-bold display-6">How It Works</h2>
+            <p class="text-muted">Three simple steps to healthier crops</p>
+        </div>
+        <div class="row text-center">
+            <div class="col-md-4 mb-4 mb-md-0">
+                <div class="d-flex flex-column align-items-center">
+                    <div class="step-number">1</div>
+                    <h5 class="fw-bold mt-3">Upload Image</h5>
+                    <p class="text-muted px-4">Take a photo of the affected leaf and upload it to our secure platform.
+                    </p>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4 mb-md-0">
+                <div class="d-flex flex-column align-items-center">
+                    <div class="step-number">2</div>
+                    <h5 class="fw-bold mt-3">AI Analysis</h5>
+                    <p class="text-muted px-4">Our Deep Learning model scans the image for disease patterns instantly.
+                    </p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="d-flex flex-column align-items-center">
+                    <div class="step-number">3</div>
+                    <h5 class="fw-bold mt-3">Get Solution</h5>
+                    <p class="text-muted px-4">Receive a detailed report with risk level and treatment steps.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Call to Action -->
+<section class="py-5 bg-dark text-white text-center">
+    <div class="container">
+        <h2 class="fw-bold mb-3">Ready to improve your yield?</h2>
+        <p class="text-white-50 mb-4">Join thousands of modern farmers using DrCrop today.</p>
+        <a href="#upload" class="btn btn-primary btn-lg rounded-pill px-5">Start Free Analysis</a>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const previewContainer = document.getElementById('previewContainer');
+    const imagePreview = document.getElementById('imagePreview');
+    const predictBtn = document.getElementById('predictBtn');
+    const removeImageBtn = document.getElementById('removeImage');
+    const form = document.getElementById('uploadForm');
+    const loader = document.getElementById('loader');
+
+    // Drag & Drop Handling
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, unhighlight, false);
+    });
+
+    function highlight(e) { dropZone.classList.add('dragover'); }
+    function unhighlight(e) { dropZone.classList.remove('dragover'); }
+
+    dropZone.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        handleFiles(files);
+    }
+
+    // Click to browse
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', function () { handleFiles(this.files); });
+
+    function handleFiles(files) {
+        if (files.length > 0) {
+            const file = files[0];
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    imagePreview.src = e.target.result;
+                    dropZone.style.display = 'none';
+                    previewContainer.style.display = 'block';
+                    predictBtn.disabled = false;
+                }
+                reader.readAsDataURL(file);
+
+                if (fileInput.files.length === 0) {
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    fileInput.files = dataTransfer.files;
+                }
+            }
+        }
+    }
+
+    removeImageBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent triggering dropZone click
+        fileInput.value = '';
+        previewContainer.style.display = 'none';
+        dropZone.style.display = 'block';
+        predictBtn.disabled = true;
+    });
+
+    form.addEventListener('submit', function () {
+        predictBtn.style.display = 'none';
+        loader.style.display = 'block';
+    });
+</script>
+{% endblock %}

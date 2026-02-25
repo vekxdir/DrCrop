@@ -1,0 +1,151 @@
+{% extends "layout.html" %}
+
+{% block title %}DrCrop AI | Diagnosis{% endblock %}
+
+{% block content %}
+<div class="result-section py-5 bg-light">
+    <div class="container">
+        <!-- Header / Breadcrumb -->
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/" class="text-decoration-none text-muted">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Diagnosis Report</li>
+            </ol>
+        </nav>
+
+        <div class="row g-4">
+            <!-- Left Column: Image & Status -->
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm rounded-4 h-100">
+                    <div class="card-body p-4 text-center">
+                        <h6 class="text-uppercase text-muted fw-bold small mb-3">Analyzed Specimen</h6>
+                        <div class="img-container mb-4 position-relative">
+                            <img src="{{ image_path }}" class="img-fluid rounded-3 shadow-sm border" alt="Analyzed Leaf"
+                                style="max-height: 300px; object-fit: cover;">
+                        </div>
+
+                        <!-- Confidence Badge -->
+                        <div class="mb-3">
+                            <span class="badge bg-{{ confidence_class }} px-3 py-2 rounded-pill">
+                                {{ confidence_level }} ({{ confidence }})
+                            </span>
+                        </div>
+
+                        <!-- Risk Level -->
+                        <div class="risk-indicator p-3 rounded-3 bg-light border">
+                            <small class="text-muted d-block text-uppercase fw-bold mb-1">Disease Risk Level</small>
+                            {% if risk_level == 'Critical' or risk_level == 'High' %}
+                            <h4 class="text-danger fw-bold mb-0"><i class="fas fa-exclamation-triangle me-2"></i>{{
+                                risk_level }}</h4>
+                            {% elif risk_level == 'Moderate' %}
+                            <h4 class="text-warning fw-bold mb-0"><i class="fas fa-exclamation-circle me-2"></i>{{
+                                risk_level }}</h4>
+                            {% elif risk_level == 'Low' or risk_level == 'None' %}
+                            <h4 class="text-success fw-bold mb-0"><i class="fas fa-check-circle me-2"></i>{{ risk_level
+                                }}</h4>
+                            {% else %}
+                            <h4 class="text-secondary fw-bold mb-0"><i class="fas fa-question-circle me-2"></i>{{
+                                risk_level }}</h4>
+                            {% endif %}
+                        </div>
+
+                        <div class="d-grid gap-2 mt-4">
+                            <a href="/" class="btn btn-primary rounded-pill"><i class="fas fa-redo me-2"></i>Analyze New
+                                Image</a>
+                            <button onclick="window.print()" class="btn btn-outline-dark rounded-pill"><i
+                                    class="fas fa-print me-2"></i>Print Report</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Diagnosis Details -->
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm rounded-4 h-100">
+                    <div class="card-header bg-white border-0 p-4 pb-0">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <h6 class="text-primary text-uppercase small fw-bold mb-1">{{ crop }}</h6>
+                                <h2 class="fw-bold text-dark mb-0">{{ disease }}</h2>
+                            </div>
+                            <div class="icon-box bg-light rounded-circle p-3 d-none d-md-block text-primary">
+                                <i class="fas fa-stethoscope fa-2x"></i>
+                            </div>
+                        </div>
+                        <hr class="mt-4 mb-0">
+                    </div>
+
+                    <div class="card-body p-4">
+
+                        <!-- Description -->
+                        <div class="mb-5">
+                            <h5 class="fw-bold text-dark mb-3"><i
+                                    class="fas fa-align-left me-2 text-primary"></i>Description</h5>
+                            <p class="text-secondary lead fs-6" style="line-height: 1.8;">
+                                {{ description }}
+                            </p>
+                        </div>
+
+                        <!-- Causes -->
+                        <div class="mb-5">
+                            <h5 class="fw-bold text-dark mb-3"><i
+                                    class="fas fa-search-plus me-2 text-warning"></i>Possible Causes</h5>
+                            <ul class="list-group list-group-flush">
+                                {% for cause in causes %}
+                                <li class="list-group-item bg-transparent px-0 py-2 border-0">
+                                    <i class="fas fa-circle text-warning me-3 small" style="font-size: 8px;"></i>{{
+                                    cause }}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+
+                        <div class="row">
+                            <!-- Treatment -->
+                            <div class="col-md-6 mb-4 mb-md-0">
+                                <div
+                                    class="p-4 rounded-3 h-100 border border-success border-opacity-25 bg-success bg-opacity-10">
+                                    <h5 class="fw-bold text-success mb-3"><i class="fas fa-first-aid me-2"></i>Treatment
+                                    </h5>
+                                    <ul class="list-unstyled mb-0">
+                                        {% for step in treatment %}
+                                        <li class="d-flex align-items-start mb-2">
+                                            <i class="fas fa-check text-success mt-1 me-2 smaller"></i>
+                                            <span class="text-dark small">{{ step }}</span>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <!-- Prevention -->
+                            <div class="col-md-6">
+                                <div
+                                    class="p-4 rounded-3 h-100 border border-info border-opacity-25 bg-info bg-opacity-10">
+                                    <h5 class="fw-bold text-info mb-3"><i class="fas fa-shield-alt me-2"></i>Prevention
+                                    </h5>
+                                    <ul class="list-unstyled mb-0">
+                                        {% for step in prevention %}
+                                        <li class="d-flex align-items-start mb-2">
+                                            <i class="fas fa-check text-info mt-1 me-2 smaller"></i>
+                                            <span class="text-dark small">{{ step }}</span>
+                                        </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 pt-4 border-top text-center text-muted small">
+                            <p class="mb-0"><em>Disclaimer: This diagnosis is generated by AI. Always consult with a
+                                    local agricultural extension expert for confirmation and chemical usage regulations
+                                    in your area.</em></p>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
