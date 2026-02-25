@@ -64,54 +64,94 @@ class Predictor:
         try:
             if os.path.exists(self.model_path):
                 print(f"Attempting to load model from: {self.model_path}")
+                self.model = self.robust_load(self.model_path)
                 
-                try:
-                    # Attempt 1: Standard Load
-                    self.model = tf.keras.models.load_model(self.model_path, compile=False)
-                    print("Standard load SUCCESS.")
-                except Exception as e1:
-                    print(f"Standard load failed: {e1}")
-                    print("Attempting fallback with custom_objects={'InputLayer': ...}")
-                    try:
-                        # Attempt 2: InputLayer bypass (Known fix for registry issues)
-                        self.model = tf.keras.models.load_model(
-                            self.model_path,
-                            compile=False,
-                            custom_objects={'InputLayer': tf.keras.layers.InputLayer}
-                        )
-                        print("Fallback load SUCCESS.")
-                    except Exception as e2:
-                        print(f"Fallback load failed: {e2}")
-                        # Final attempt: try model/model.h5 if .keras fails
-                        h5_path = self.model_path.replace(".keras", ".h5")
-                        if os.path.exists(h5_path):
-                            print(f"Attempting final fallback to: {h5_path}")
-                            self.model = tf.keras.models.load_model(
-                                h5_path,
-                                compile=False,
-                                custom_objects={'InputLayer': tf.keras.layers.InputLayer}
-                            )
-                            print("H5 Fallback load SUCCESS.")
-                        else:
-                            raise e2
-
                 if self.model:
                     print("MODEL LOADED SUCCESSFULLY")
                 else:
-                    print("Model object is None after all attempts.")
+                    # Try .h5 fallback if .keras failed
+                    h5_path = self.model_path.replace(".keras", ".h5")
+                    if os.path.exists(h5_path):
+                        print(f"Attempting fallback to: {h5_path}")
+                        self.model = self.robust_load(h5_path)
+                        if self.model:
+                            print("H5 MODEL LOADED SUCCESSFULLY")
 
-            else:
-                print(f"Model file NOT FOUND at: {self.model_path}")
-                # Debug: List what IS in the model folder
+            if not self.model:
+                print("Model could not be loaded after all attempts.")
                 model_dir = os.path.dirname(self.model_path)
                 if os.path.exists(model_dir):
                     print(f"Contents of {model_dir}: {os.listdir(model_dir)}")
-                else:
-                    print(f"Directory {model_dir} ALSO NOT FOUND.")
 
         except Exception as e:
             print(f"CRITICAL MODEL LOAD ERROR: {e}")
             self.model = None
+
+    def robust_load(self, path):
+        """Tries various methods to load the model, including config patching for Keras 2/3 compatibility."""
+        import h5py
+        import json
+
+        # 1. Try standard load first
+        try:
+            return tf.keras.models.load_model(
+                path, 
+                compile=False,
+                custom_objects={'InputLayer': tf.keras.layers.InputLayer}
+            )
+        except Exception as e:
+            print(f"Standard/Simple load failed for {path}: {e}")
+
+        # 2. Manual Config Patching (The "Pro" Fix for Cross-Version Compatibility)
+        try:
+            print("Attempting manual configuration patching...")
+            if not path.endswith('.h5'):
+                # For .keras files, we'd need to unzip and find config.json, 
+                # but usually the user has .h5 or we can fall back to .h5
+                print("Patching is easiest with .h5 files. Checking for .h5 version...")
+                h5_path = path.replace('.keras', '.h5')
+                if not os.path.exists(h5_path):
+                     return None
+                path = h5_path
+
+            with h5py.File(path, 'r') as f:
+                model_config = f.attrs.get('model_config')
+                if model_config is None:
+                    return None
+                
+                if isinstance(model_config, bytes):
+                    model_config = model_config.decode('utf-8')
+                
+                # Patching logic
+                # Keras 3 uses 'batch_shape', Keras 2 expects 'batch_input_shape'
+                model_config = model_config.replace('"batch_shape"', '"batch_input_shape"')
+                
+                # Keras 3 module paths (keras.src) don't exist in Keras 2
+                model_config = model_config.replace('keras.src.models.functional', 'keras.models')
+                model_config = model_config.replace('keras.src.layers', 'keras.layers')
+                
+                # Keras 3 uses 'Functional', Keras 2 often prefers 'Model' or handling via factory
+                # If 'Functional' fails, we try 'Model'
+                model_config_v2 = model_config.replace('"class_name": "Functional"', '"class_name": "Model"')
+                
+                # Attempt to recreate from patched JSON
+                try:
+                    model = tf.keras.models.model_from_json(model_config)
+                    model.load_weights(path)
+                    print("Load success with batch_shape patch.")
+                    return model
+                except Exception:
+                    try:
+                        model = tf.keras.models.model_from_json(model_config_v2)
+                        model.load_weights(path)
+                        print("Load success with Functional->Model patch.")
+                        return model
+                    except Exception as last_e:
+                        print(f"All config patches failed: {last_e}")
+                        return None
+        except Exception as patch_e:
+            print(f"Manual patching failed: {patch_e}")
+            return None
 
 
     def predict(self, image_path):
