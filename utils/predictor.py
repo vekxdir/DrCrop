@@ -60,25 +60,51 @@ class Predictor:
             print("Class names load error:", e)
 
 
-        # Load model.keras (THIS IS THE FIX)
+        # Load model with multiple fallbacks for cross-platform compatibility
         try:
-
             if os.path.exists(self.model_path):
+                print(f"Attempting to load model from: {self.model_path}")
+                
+                try:
+                    # Attempt 1: Standard Load
+                    self.model = tf.keras.models.load_model(self.model_path, compile=False)
+                    print("Standard load SUCCESS.")
+                except Exception as e1:
+                    print(f"Standard load failed: {e1}")
+                    print("Attempting fallback with custom_objects={'InputLayer': ...}")
+                    try:
+                        # Attempt 2: InputLayer bypass (Known fix for registry issues)
+                        self.model = tf.keras.models.load_model(
+                            self.model_path,
+                            compile=False,
+                            custom_objects={'InputLayer': tf.keras.layers.InputLayer}
+                        )
+                        print("Fallback load SUCCESS.")
+                    except Exception as e2:
+                        print(f"Fallback load failed: {e2}")
+                        # Final attempt: try model/model.h5 if .keras fails
+                        h5_path = self.model_path.replace(".keras", ".h5")
+                        if os.path.exists(h5_path):
+                            print(f"Attempting final fallback to: {h5_path}")
+                            self.model = tf.keras.models.load_model(
+                                h5_path,
+                                compile=False,
+                                custom_objects={'InputLayer': tf.keras.layers.InputLayer}
+                            )
+                            print("H5 Fallback load SUCCESS.")
+                        else:
+                            raise e2
 
-                self.model = tf.keras.models.load_model(
-                    self.model_path,
-                    compile=False
-                )
-
-                print("MODEL LOADED SUCCESSFULLY")
+                if self.model:
+                    print("MODEL LOADED SUCCESSFULLY")
+                else:
+                    print("Model object is None after all attempts.")
 
             else:
-
-                print("model.keras NOT FOUND")
+                print(f"Model file NOT FOUND at: {self.model_path}")
 
         except Exception as e:
-
-            print("MODEL LOAD ERROR:", e)
+            print(f"CRITICAL MODEL LOAD ERROR: {e}")
             self.model = None
 
 
