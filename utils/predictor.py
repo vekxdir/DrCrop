@@ -60,76 +60,38 @@ class Predictor:
             print("Class names load error:", e)
 
 
-        # Load model by rebuilding architecture (The bulletproof fix)
+        # Load model with standard Keras 3 loading (Matching local environment)
         try:
-            print("--- Rebuilding Model Architecture ---", flush=True)
-            self.model = self.build_model_architecture()
-            
-            # Try to load weights from .h5 (most compatible)
-            h5_path = self.model_path.replace(".keras", ".h5")
-            target_weights = h5_path if os.path.exists(h5_path) else self.model_path
-            
-            print(f"Loading weights from: {target_weights}", flush=True)
-            try:
-                # Attempt 1: Topology-based load
-                self.model.load_weights(target_weights)
-                print("Weights loaded via topology.", flush=True)
-            except Exception as e_top:
-                print(f"Topology-based weight load failed: {e_top}", flush=True)
-                print("Attempting to load weights by name...", flush=True)
-                try:
-                    # Attempt 2: Name-based load
-                    self.model.load_weights(target_weights, by_name=True)
-                    print("Weights loaded via layer names.", flush=True)
-                except Exception as e_name:
-                    print(f"Name-based weight load failed: {e_name}", flush=True)
-                    raise e_name
-
-            print("MODEL LOADED SUCCESSFULLY (BY ARCHITECTURE REBUILD)", flush=True)
+            if os.path.exists(self.model_path):
+                print(f"Loading model from: {self.model_path}", flush=True)
+                # Keras 3 standard load
+                self.model = tf.keras.models.load_model(self.model_path, compile=False)
+                print("MODEL LOADED SUCCESSFULLY (STANDARD LOAD)", flush=True)
+            else:
+                # Try .h5 fallback
+                h5_path = self.model_path.replace(".keras", ".h5")
+                if os.path.exists(h5_path):
+                    print(f"Loading from H5: {h5_path}", flush=True)
+                    self.model = tf.keras.models.load_model(h5_path, compile=False)
+                    print("H5 MODEL LOADED SUCCESSFULLY", flush=True)
+                else:
+                    print(f"No model file found at {self.model_path}", flush=True)
 
         except Exception as e:
             print(f"CRITICAL MODEL LOAD ERROR: {e}", flush=True)
-            self.model = None
-
-    def build_model_architecture(self):
-        """Hard-coded MobileNetV2 architecture matching train.py exactly."""
-        from tensorflow.keras import layers, applications, Sequential
-
-        IMG_SIZE = (128, 128)
-        TARGET_IMG_SIZE = (224, 224)
-        NUM_CLASSES = 15
-
-        # 1. Input layer
-        inputs = tf.keras.Input(shape=IMG_SIZE + (3,))
-
-        # 2. Sequential Data Augmentation (topology matching)
-        # In train.py, these are wrapped in a Sequential model
-        data_augmentation = Sequential([
-            layers.RandomFlip("horizontal_and_vertical"),
-            layers.RandomRotation(0.2),
-            layers.RandomZoom(0.2),
-        ])
-        x = data_augmentation(inputs)
-
-        # 3. Preprocessing
-        x = layers.Resizing(TARGET_IMG_SIZE[0], TARGET_IMG_SIZE[1])(x)
-        x = layers.Rescaling(1./127.5, offset=-1)(x)
-
-        # 4. Base Model
-        base_model = applications.MobileNetV2(
-            input_shape=TARGET_IMG_SIZE + (3,),
-            include_top=False,
-            weights=None
-        )
-        x = base_model(x, training=False)
-
-        # 5. Classification head
-        x = layers.GlobalAveragePooling2D()(x)
-        x = layers.Dropout(0.2)(x)
-        outputs = layers.Dense(NUM_CLASSES, activation='softmax')(x)
-
-        return tf.keras.Model(inputs, outputs)
-
+            # One final fallback: if load_model fails, it might be due to 
+            # InputLayer metadata registry issues in some TF 2.16 builds.
+            try:
+                print("Fallback: loading with custom_objects...", flush=True)
+                self.model = tf.keras.models.load_model(
+                    self.model_path, 
+                    compile=False,
+                    custom_objects={'InputLayer': tf.keras.layers.InputLayer}
+                )
+                print("MODEL LOADED VIA CUSTOM_OBJECTS FALLBACK", flush=True)
+            except Exception as e2:
+                print(f"All loading methods failed: {e2}", flush=True)
+                self.model = None
 
     def predict(self, image_path):
 
