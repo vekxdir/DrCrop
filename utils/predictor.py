@@ -13,27 +13,28 @@ class Predictor:
         self.model = None
         self.class_names = []
 
-        # Get absolute project base directory
+        # absolute base directory
         self.BASE_DIR = os.path.dirname(
             os.path.dirname(os.path.abspath(__file__))
         )
 
-        # Use NEW .keras model format
+        # USE model.keras
         self.model_path = os.path.join(
-            self.BASE_DIR, "model", "model.keras"
+            self.BASE_DIR,
+            "model",
+            "model.keras"
         )
 
         self.class_names_path = os.path.join(
-            self.BASE_DIR, "model", "class_names.json"
+            self.BASE_DIR,
+            "model",
+            "class_names.json"
         )
 
-        print("\n===== Predictor Initialization =====")
-        print("BASE_DIR:", self.BASE_DIR)
+        print("\n=== Predictor Init ===")
         print("Model path:", self.model_path)
-        print("Class names path:", self.class_names_path)
         print("Model exists:", os.path.exists(self.model_path))
-        print("Class names exists:", os.path.exists(self.class_names_path))
-        print("===================================\n")
+        print("======================\n")
 
         self.load_resources()
 
@@ -48,17 +49,18 @@ class Predictor:
                 with open(self.class_names_path, "r") as f:
                     self.class_names = json.load(f)
 
-                print(f"SUCCESS: Loaded {len(self.class_names)} classes")
+                print("Class names loaded")
 
             else:
-                print("ERROR: class_names.json NOT FOUND")
+
+                print("class_names.json NOT FOUND")
 
         except Exception as e:
 
-            print("ERROR loading class names:", e)
+            print("Class names load error:", e)
 
 
-        # Load model (.keras format)
+        # Load model.keras (THIS IS THE FIX)
         try:
 
             if os.path.exists(self.model_path):
@@ -68,14 +70,15 @@ class Predictor:
                     compile=False
                 )
 
-                print("SUCCESS: Model loaded successfully")
+                print("MODEL LOADED SUCCESSFULLY")
 
             else:
-                print("ERROR: model.keras NOT FOUND")
+
+                print("model.keras NOT FOUND")
 
         except Exception as e:
 
-            print("ERROR loading model:", e)
+            print("MODEL LOAD ERROR:", e)
             self.model = None
 
 
@@ -94,6 +97,7 @@ class Predictor:
             predictions = self.model.predict(processed_img)
 
             confidence = float(np.max(predictions))
+
             predicted_index = int(np.argmax(predictions))
 
             if confidence >= 0.75 and predicted_index < len(self.class_names):
@@ -112,14 +116,11 @@ class Predictor:
 
             return self.format_result(info, confidence)
 
-
         except Exception as e:
 
             print("Prediction error:", e)
 
-            return {
-                "error": "Prediction failed"
-            }
+            return {"error": "Prediction failed"}
 
 
     def format_result(self, info, confidence):
@@ -141,7 +142,6 @@ class Predictor:
             confidence_level = "Low Confidence"
             confidence_class = "danger"
 
-
         return {
 
             "disease_name": info["name"],
@@ -161,5 +161,5 @@ class Predictor:
         }
 
 
-# Global instance
+# global instance
 predictor = Predictor()
