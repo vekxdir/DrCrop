@@ -7,93 +7,83 @@ from utils.preprocess import preprocess_image
 
 
 class Predictor:
+
     def __init__(self):
+
         self.model = None
         self.class_names = []
 
-        # Absolute base directory (important for Render and local)
+        # Get absolute project base directory
         self.BASE_DIR = os.path.dirname(
             os.path.dirname(os.path.abspath(__file__))
         )
 
-        # Absolute resource paths
+        # Use NEW .keras model format
         self.model_path = os.path.join(
-            self.BASE_DIR, "model", "model.h5"
+            self.BASE_DIR, "model", "model.keras"
         )
 
         self.class_names_path = os.path.join(
             self.BASE_DIR, "model", "class_names.json"
         )
 
-        # Debug info (visible in Render logs)
-        print("\n========== PREDICTOR DEBUG ==========")
-        print("Current Working Directory:", os.getcwd())
+        print("\n===== Predictor Initialization =====")
         print("BASE_DIR:", self.BASE_DIR)
-
-        if os.path.exists(self.BASE_DIR):
-            print("BASE_DIR contents:", os.listdir(self.BASE_DIR))
-
-        model_dir = os.path.join(self.BASE_DIR, "model")
-
-        if os.path.exists(model_dir):
-            print("Model directory contents:", os.listdir(model_dir))
-        else:
-            print("ERROR: model directory NOT FOUND")
-
         print("Model path:", self.model_path)
         print("Class names path:", self.class_names_path)
         print("Model exists:", os.path.exists(self.model_path))
         print("Class names exists:", os.path.exists(self.class_names_path))
-        print("=====================================\n")
+        print("===================================\n")
 
-        # Load resources
         self.load_resources()
+
 
     def load_resources(self):
 
         # Load class names
-        if os.path.exists(self.class_names_path):
+        try:
 
-            try:
+            if os.path.exists(self.class_names_path):
+
                 with open(self.class_names_path, "r") as f:
                     self.class_names = json.load(f)
 
-                print(
-                    f"SUCCESS: Loaded {len(self.class_names)} classes"
-                )
+                print(f"SUCCESS: Loaded {len(self.class_names)} classes")
 
-            except Exception as e:
-                print("ERROR loading class names:", e)
+            else:
+                print("ERROR: class_names.json NOT FOUND")
 
-        else:
-            print("ERROR: class_names.json NOT FOUND")
+        except Exception as e:
 
-        # Load model
-        if os.path.exists(self.model_path):
+            print("ERROR loading class names:", e)
 
-            try:
+
+        # Load model (.keras format)
+        try:
+
+            if os.path.exists(self.model_path):
+
                 self.model = tf.keras.models.load_model(
-                    self.model_path
+                    self.model_path,
+                    compile=False
                 )
 
                 print("SUCCESS: Model loaded successfully")
 
-            except Exception as e:
-                print("ERROR loading model:", e)
-                self.model = None
+            else:
+                print("ERROR: model.keras NOT FOUND")
 
-        else:
-            print("ERROR: model.h5 NOT FOUND")
+        except Exception as e:
+
+            print("ERROR loading model:", e)
             self.model = None
+
 
     def predict(self, image_path):
 
-        # Safety check
         if self.model is None:
-            print("Prediction aborted: model is None")
             return {"error": "Model not loaded"}
 
-        # Preprocess image
         processed_img = preprocess_image(image_path)
 
         if processed_img is None:
@@ -106,16 +96,15 @@ class Predictor:
             confidence = float(np.max(predictions))
             predicted_index = int(np.argmax(predictions))
 
-            # Unknown disease handling
-            if (
-                confidence >= 0.75
-                and predicted_index < len(self.class_names)
-            ):
+            if confidence >= 0.75 and predicted_index < len(self.class_names):
+
                 disease_key = self.class_names[predicted_index]
+
             else:
+
                 disease_key = "Unknown Disease"
 
-            # Fetch disease info
+
             info = DISEASE_DATABASE.get(
                 disease_key,
                 DISEASE_DATABASE["Unknown Disease"]
@@ -123,20 +112,20 @@ class Predictor:
 
             return self.format_result(info, confidence)
 
+
         except Exception as e:
 
             print("Prediction error:", e)
 
-            return self.format_result(
-                DISEASE_DATABASE["Unknown Disease"],
-                0.0
-            )
+            return {
+                "error": "Prediction failed"
+            }
+
 
     def format_result(self, info, confidence):
 
         confidence_percent = round(confidence * 100, 2)
 
-        # Confidence level classification
         if confidence_percent >= 90:
 
             confidence_level = "High Confidence"
@@ -151,6 +140,7 @@ class Predictor:
 
             confidence_level = "Low Confidence"
             confidence_class = "danger"
+
 
         return {
 
@@ -171,5 +161,5 @@ class Predictor:
         }
 
 
-# Global instance used by Flask
+# Global instance
 predictor = Predictor()
