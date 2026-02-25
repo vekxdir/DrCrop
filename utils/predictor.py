@@ -88,11 +88,14 @@ class Predictor:
             self.model = None
 
     def robust_load(self, path):
-        """Tries various methods to load the model, including config patching for Keras 2/3 compatibility."""
+        """Tries various methods to load the model, including deep config patching for Keras 2/3 compatibility."""
         import h5py
         import json
+        import re
 
-        # 1. Try standard load first
+        print(f"--- robust_load starting for {path} ---", flush=True)
+
+        # 1. Try standard load first (Bypass InputLayer issue if registry is fixed)
         try:
             return tf.keras.models.load_model(
                 path, 
@@ -100,57 +103,71 @@ class Predictor:
                 custom_objects={'InputLayer': tf.keras.layers.InputLayer}
             )
         except Exception as e:
-            print(f"Standard/Simple load failed for {path}: {e}")
+            print(f"Standard load failed for {path}: {e}", flush=True)
 
-        # 2. Manual Config Patching (The "Pro" Fix for Cross-Version Compatibility)
+        # 2. Deep Manual Config Patching
         try:
-            print("Attempting manual configuration patching...")
+            print("Attempting Deep Configuration Patching...", flush=True)
+            # Patching is most reliable with .h5 files
+            work_path = path
             if not path.endswith('.h5'):
-                # For .keras files, we'd need to unzip and find config.json, 
-                # but usually the user has .h5 or we can fall back to .h5
-                print("Patching is easiest with .h5 files. Checking for .h5 version...")
-                h5_path = path.replace('.keras', '.h5')
-                if not os.path.exists(h5_path):
-                     return None
-                path = h5_path
+                h5_compat = path.replace('.keras', '.h5')
+                if os.path.exists(h5_compat):
+                    work_path = h5_compat
+                else:
+                    print("No .h5 file found for deep patching fallback.", flush=True)
 
-            with h5py.File(path, 'r') as f:
+            with h5py.File(work_path, 'r') as f:
                 model_config = f.attrs.get('model_config')
                 if model_config is None:
+                    print("No model_config found in H5 attributes.", flush=True)
                     return None
                 
                 if isinstance(model_config, bytes):
                     model_config = model_config.decode('utf-8')
                 
-                # Patching logic
-                # Keras 3 uses 'batch_shape', Keras 2 expects 'batch_input_shape'
+                print("Original config size:", len(model_config), flush=True)
+
+                # --- THE DEEP CLEANSE ---
+                
+                # A. Keras 3 uses 'batch_shape', Keras 2 expects 'batch_input_shape'
                 model_config = model_config.replace('"batch_shape"', '"batch_input_shape"')
                 
-                # Keras 3 module paths (keras.src) don't exist in Keras 2
+                # B. Keras 3 module paths (keras.src) don't exist in Keras 2
                 model_config = model_config.replace('keras.src.models.functional', 'keras.models')
                 model_config = model_config.replace('keras.src.layers', 'keras.layers')
                 
-                # Keras 3 uses 'Functional', Keras 2 often prefers 'Model' or handling via factory
-                # If 'Functional' fails, we try 'Model'
-                model_config_v2 = model_config.replace('"class_name": "Functional"', '"class_name": "Model"')
+                # C. Keras 3 uses 'Functional', Keras 2 uses 'Model' or 'Sequential'
+                # Note: Functional -> Model is the most common mismatch
+                model_config = model_config.replace('"class_name": "Functional"', '"class_name": "Model"')
+
+                # D. STRIP DTypePolicy: Keras 3 saves dtype as a complex object, Keras 2 wants a string
+                # Example: "dtype": {"module": "keras", "class_name": "DTypePolicy", "config": {"name": "float32"}, ...}
+                # We replace the whole dict with just "float32"
+                pattern = r'\{\s*"module":\s*"keras",\s*"class_name":\s*"DTypePolicy",\s*"config":\s*\{\s*"name":\s*"([^"]+)"\s*\},\s*"registered_name":\s*null\s*\}'
+                model_config = re.sub(pattern, r'"\1"', model_config)
                 
+                # Fallback for slightly different DTypePolicy formats
+                model_config = re.sub(r'\{\s*"class_name":\s*"DTypePolicy",\s*"config":\s*\{\s*"name":\s*"([^"]+)"\s*\}.*?\}', r'"\1"', model_config)
+
+                print("Patched config size:", len(model_config), flush=True)
+
                 # Attempt to recreate from patched JSON
                 try:
-                    model = tf.keras.models.model_from_json(model_config)
-                    model.load_weights(path)
-                    print("Load success with batch_shape patch.")
+                    # We pass InputLayer to custom_objects just in case
+                    model = tf.keras.models.model_from_json(
+                        model_config, 
+                        custom_objects={'InputLayer': tf.keras.layers.InputLayer}
+                    )
+                    model.load_weights(work_path)
+                    print("DEEP PATCH SUCCESS: Model reconstructed and weights loaded.", flush=True)
                     return model
-                except Exception:
-                    try:
-                        model = tf.keras.models.model_from_json(model_config_v2)
-                        model.load_weights(path)
-                        print("Load success with Functional->Model patch.")
-                        return model
-                    except Exception as last_e:
-                        print(f"All config patches failed: {last_e}")
-                        return None
+                except Exception as e_json:
+                    print(f"Deep patch Reconstruction failed: {e_json}", flush=True)
+                    return None
+                    
         except Exception as patch_e:
-            print(f"Manual patching failed: {patch_e}")
+            print(f"Deep patching process failed: {patch_e}", flush=True)
             return None
 
 
