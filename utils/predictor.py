@@ -60,115 +60,58 @@ class Predictor:
             print("Class names load error:", e)
 
 
-        # Load model with multiple fallbacks for cross-platform compatibility
+        # Load model by rebuilding architecture (The bulletproof fix)
         try:
-            if os.path.exists(self.model_path):
-                print(f"Attempting to load model from: {self.model_path}")
-                self.model = self.robust_load(self.model_path)
-                
-                if self.model:
-                    print("MODEL LOADED SUCCESSFULLY")
-                else:
-                    # Try .h5 fallback if .keras failed
-                    h5_path = self.model_path.replace(".keras", ".h5")
-                    if os.path.exists(h5_path):
-                        print(f"Attempting fallback to: {h5_path}")
-                        self.model = self.robust_load(h5_path)
-                        if self.model:
-                            print("H5 MODEL LOADED SUCCESSFULLY")
-
-            if not self.model:
-                print("Model could not be loaded after all attempts.")
-                model_dir = os.path.dirname(self.model_path)
-                if os.path.exists(model_dir):
-                    print(f"Contents of {model_dir}: {os.listdir(model_dir)}")
+            print("--- Rebuilding Model Architecture ---", flush=True)
+            self.model = self.build_model_architecture()
+            
+            # Try to load weights from .h5 (most compatible)
+            h5_path = self.model_path.replace(".keras", ".h5")
+            target_weights = h5_path if os.path.exists(h5_path) else self.model_path
+            
+            print(f"Loading weights from: {target_weights}", flush=True)
+            self.model.load_weights(target_weights)
+            print("MODEL LOADED SUCCESSFULLY (BY ARCHITECTURE REBUILD)", flush=True)
 
         except Exception as e:
-            print(f"CRITICAL MODEL LOAD ERROR: {e}")
+            print(f"CRITICAL MODEL LOAD ERROR: {e}", flush=True)
             self.model = None
 
-    def robust_load(self, path):
-        """Tries various methods to load the model, including deep config patching for Keras 2/3 compatibility."""
-        import h5py
-        import json
-        import re
+    def build_model_architecture(self):
+        """Hard-coded MobileNetV2 architecture matching train.py exactly."""
+        from tensorflow.keras import layers, applications
 
-        print(f"--- robust_load starting for {path} ---", flush=True)
+        IMG_SIZE = (128, 128)
+        TARGET_IMG_SIZE = (224, 224)
+        NUM_CLASSES = 15
 
-        # 1. Try standard load first (Bypass InputLayer issue if registry is fixed)
-        try:
-            return tf.keras.models.load_model(
-                path, 
-                compile=False,
-                custom_objects={'InputLayer': tf.keras.layers.InputLayer}
-            )
-        except Exception as e:
-            print(f"Standard load failed for {path}: {e}", flush=True)
+        # 1. Input layer
+        inputs = tf.keras.Input(shape=IMG_SIZE + (3,))
 
-        # 2. Deep Manual Config Patching
-        try:
-            print("Attempting Deep Configuration Patching...", flush=True)
-            # Patching is most reliable with .h5 files
-            work_path = path
-            if not path.endswith('.h5'):
-                h5_compat = path.replace('.keras', '.h5')
-                if os.path.exists(h5_compat):
-                    work_path = h5_compat
-                else:
-                    print("No .h5 file found for deep patching fallback.", flush=True)
+        # 2. Sequential Data Augmentation (topology matching even if pass-through)
+        # Random layers in inference mode act as identity/pass-through
+        x = layers.RandomFlip("horizontal_and_vertical")(inputs)
+        x = layers.RandomRotation(0.2)(x)
+        x = layers.RandomZoom(0.2)(x)
 
-            with h5py.File(work_path, 'r') as f:
-                model_config = f.attrs.get('model_config')
-                if model_config is None:
-                    print("No model_config found in H5 attributes.", flush=True)
-                    return None
-                
-                if isinstance(model_config, bytes):
-                    model_config = model_config.decode('utf-8')
-                
-                print("Original config size:", len(model_config), flush=True)
+        # 3. Preprocessing
+        x = layers.Resizing(TARGET_IMG_SIZE[0], TARGET_IMG_SIZE[1])(x)
+        x = layers.Rescaling(1./127.5, offset=-1)(x)
 
-                # --- THE DEEP CLEANSE ---
-                
-                # A. Keras 3 uses 'batch_shape', Keras 2 expects 'batch_input_shape'
-                model_config = model_config.replace('"batch_shape"', '"batch_input_shape"')
-                
-                # B. Keras 3 module paths (keras.src) don't exist in Keras 2
-                model_config = model_config.replace('keras.src.models.functional', 'keras.models')
-                model_config = model_config.replace('keras.src.layers', 'keras.layers')
-                
-                # C. Keras 3 uses 'Functional', Keras 2 uses 'Model' or 'Sequential'
-                # Note: Functional -> Model is the most common mismatch
-                model_config = model_config.replace('"class_name": "Functional"', '"class_name": "Model"')
+        # 4. Base Model (weights=None to avoid downloads, topology must match)
+        base_model = applications.MobileNetV2(
+            input_shape=TARGET_IMG_SIZE + (3,),
+            include_top=False,
+            weights=None
+        )
+        x = base_model(x, training=False)
 
-                # D. STRIP DTypePolicy: Keras 3 saves dtype as a complex object, Keras 2 wants a string
-                # Example: "dtype": {"module": "keras", "class_name": "DTypePolicy", "config": {"name": "float32"}, ...}
-                # We replace the whole dict with just "float32"
-                pattern = r'\{\s*"module":\s*"keras",\s*"class_name":\s*"DTypePolicy",\s*"config":\s*\{\s*"name":\s*"([^"]+)"\s*\},\s*"registered_name":\s*null\s*\}'
-                model_config = re.sub(pattern, r'"\1"', model_config)
-                
-                # Fallback for slightly different DTypePolicy formats
-                model_config = re.sub(r'\{\s*"class_name":\s*"DTypePolicy",\s*"config":\s*\{\s*"name":\s*"([^"]+)"\s*\}.*?\}', r'"\1"', model_config)
+        # 5. Classification head
+        x = layers.GlobalAveragePooling2D()(x)
+        x = layers.Dropout(0.2)(x)
+        outputs = layers.Dense(NUM_CLASSES, activation='softmax')(x)
 
-                print("Patched config size:", len(model_config), flush=True)
-
-                # Attempt to recreate from patched JSON
-                try:
-                    # We pass InputLayer to custom_objects just in case
-                    model = tf.keras.models.model_from_json(
-                        model_config, 
-                        custom_objects={'InputLayer': tf.keras.layers.InputLayer}
-                    )
-                    model.load_weights(work_path)
-                    print("DEEP PATCH SUCCESS: Model reconstructed and weights loaded.", flush=True)
-                    return model
-                except Exception as e_json:
-                    print(f"Deep patch Reconstruction failed: {e_json}", flush=True)
-                    return None
-                    
-        except Exception as patch_e:
-            print(f"Deep patching process failed: {patch_e}", flush=True)
-            return None
+        return tf.keras.Model(inputs, outputs)
 
 
     def predict(self, image_path):
